@@ -1,0 +1,204 @@
+* Objective-C to Lisp Binding with Transparent Layer
+
+Dependencies:
+#+BEGIN_SRC common-lisp
+(ql:quickload '(:alexandria :anaphora :closer-mop :cffi :cffi-libffi))
+#+END_SRC
+
+Packages:
+- OBJC ::         Main Package
+- OBJC-CLASS ::   For Class Definitions
+- OBJC-META ::    For Metaclass Definitions
+- OBJC-METHOD ::  For Obj-C -> Lisp Generic Function Methods
+- OBJC-PROP ::    Obj-C Properties -> Lisp Slot Names
+
+#+BEGIN_QUOTE
+The source code is separated using titles and #\Page, please use ~C-x [~ and ~C-x ]~ to navigate throught subtitles.
+#+END_QUOTE
+
+** Usage
+
+To get a Obj-C class, either pass its string name or the Lisp name it should be translated to ~cls~ macro or ~ensure-objc-class~ function, or use string name for ~objc-lookup-class~:
+
+#+begin_src common-lisp
+  (objc:cls ns-object)
+  or
+  (objc:ensure-objc-class 'objc-class::ns-object)
+  (objc:ensure-objc-class "NSObject")
+  or
+  (objc:objc-lookup-class "NSObject")
+  
+  ;; => #<OBJC-META:NS-OBJECT OBJC-CLASS:NS-OBJECT>
+#+end_src
+
+(These are convenient functions, CLOS & MOP methods will be introduced below.)
+
+The class object will be automatically created inside corresponding (~OBJC-CLASS~ or ~OBJC-META~) package, with all superclasses & metaclasses defined. By default, all methods under the class will also be registered in ~OBJC-METHOD~ package, and class properties will be registered as Lisp class slots named in ~OBJC-PROP~ package.
+
+#+begin_src text
+  #<OBJC-META:NS-OBJECT {7005C64A43}>
+--------------------
+Name: OBJC-CLASS:NS-OBJECT
+Super classes: #<STANDARD-CLASS OBJC::OBJC-OBJECT>
+Direct Slots: CLASS-DESCRIPTION, ATTRIBUTE-KEYS, TO-ONE-RELATIONSHIP-KEYS, TO-MANY-RELATIONSHIP-KEYS, OBSERVATION-INFO, CLASS-FOR-KEYED-ARCHIVER, AUTO-CONTENT-ACCESSING-PROXY, SCRIPTING-PROPERTIES, CLASS-CODE, CLASS-NAME, EXPOSED-BINDINGS, _NS_OBSERVATION-TRACKING-DICTIONARY, HASH, SUPERCLASS, DESCRIPTION, DEBUG-DESCRIPTION, HASH, SUPERCLASS, DESCRIPTION, DEBUG-DESCRIPTION, _AX-IS-WRAPPED-POINTER, ACCESSIBILITY-SWIFT-UI-DEFAULT-ACTION-STORED-BLOCK, ACCESSIBILITY-SWIFT-UI-STORED-LINK-ROTOR, SWIFTUI_ACCESSIBILITY-LABEL, KNOWN-REPRESENTED-ELEMENT, ROTOR-OWNER-ELEMENT, HASH, SUPERCLASS, DESCRIPTION, DEBUG-DESCRIPTION
+Effective Slots: #<N/A (class not finalized)> [finalize]
+Sub classes: NS-RULER-MARKER, NS-GRID-ROW, NS-GRID-COLUMN, NS-GRID-CELL, NS-CELL, NS-FILE-PROMISE-RECEIVER, NS-FILE-PROMISE-PROVIDER, NS-CONTROLLER, NS-DOCUMENT-CONTROLLER, NS-DOCUMENT, NS-PASTEBOARD-ITEM, NS-PASTEBOARD, NS-WORKSPACE, NS-RESPONDER, NS-DICTIONARY, NS-SET, NS-ARRAY, NS-STRING, NS-VALUE, PROTOCOL
+Precedence List: #<N/A (class not finalized)>
+Prototype: #<N/A (class not finalized)>
+--------------------
+ Group slots by inheritance [X]
+ Sort slots alphabetically  [X]
+
+CLASS:
+[ ]  %DOCUMENTATION                     = NIL
+[ ]  CLASS-EQ-SPECIALIZER               = #<SB-PCL::CLASS-EQ-SPECIALIZER #<OBJC-META:NS-OBJECT OBJC-CLASS:NS-OBJECT>>
+[ ]  DIRECT-METHODS                     = (NIL)
+[ ]  DIRECT-SUBCLASSES                  = (#<OBJC-META:NS-RULER-MARKER OBJC-CLASS:NS-RULER-MARKER> #<OBJC-META:NS-GRID-ROW OBJC-CLASS:NS-GRID-ROW> #<OBJC-META:NS-GRID-COLUMN OBJC-CLASS:NS-GRID-COLUMN> #<OBJC-META:NS-GRID-CELL OBJC-CLASS:NS-GRID-CELL> #<OBJC-META:NS-CELL OBJC-CLASS:NS-CELL> #<OBJC-META:NS-FILE-PROMISE-RECEIVER OBJC-CLASS:NS-FILE-PROMISE-RECEIVER> #<OBJC-META:NS-FILE-PROMISE-PROVIDER OBJC-CLASS:NS-FILE-PROMISE-PROVIDER> #<OBJC-META:NS-CONTROLLER OBJC-CLASS:NS-CONTROLLER> ..)
+[ ]  DIRECT-SUPERCLASSES                = (#<STANDARD-CLASS OBJC::OBJC-OBJECT>)
+[ ]  FINALIZED-P                        = NIL
+[ ]  NAME                               = OBJC-CLASS:NS-OBJECT
+[ ]  SAFE-P                             = NIL
+
+DEFINITION-SOURCE-MIXIN:
+[ ]  SOURCE                             = #S(SB-C:DEFINITION-SOURCE-LOCATION :NAMESTRING "/Users/april/common-lisp/objc/objc.lisp" :INDICES 4521988)
+
+NS-OBJECT:
+[ ]  ACCESS-INSTANCE-VARIABLES-DIRECTLY = T
+
+OBJC-CLASS:
+[ ]  AUTO-BIND-PROPERTIES               = T
+[ ]  AUTO-REGISTER-METHODS              = T
+[ ]  OBJC-CLASS-NAME                    = "NSObject"
+
+OBJC-OBJECT:
+[ ]  OBJ                                = #.(SB-SYS:INT-SAP #X1F2689D70)
+
+PCL-CLASS:
+[ ]  %CLASS-PRECEDENCE-LIST             = #<unbound>
+[ ]  CAN-PRECEDE-LIST                   = (#<SB-PCL:SYSTEM-CLASS COMMON-LISP:T> #<SB-PCL::SLOT-CLASS SB-PCL::SLOT-OBJECT> #<STANDARD-CLASS COMMON-LISP:STANDARD-OBJECT> #<STANDARD-CLASS OBJC::OBJC-OBJECT>)
+[ ]  CPL-AVAILABLE-P                    = NIL
+[ ]  INCOMPATIBLE-SUPERCLASS-LIST       = NIL
+[ ]  PROTOTYPE                          = NIL
+[ ]  WRAPPER                            = #<SB-KERNEL:LAYOUT for OBJC-CLASS:NS-OBJECT {7005241303}>
+
+PLIST-MIXIN:
+[ ]  PLIST                              = NIL
+
+SLOT-CLASS:
+[ ]  DIRECT-SLOTS                       = (#<OBJC::OBJC-PROPERTY-SLOT OBJC-PROP:CLASS-DESCRIPTION> #<OBJC::OBJC-PROPERTY-SLOT OBJC-PROP:ATTRIBUTE-KEYS> #<OBJC::OBJC-PROPERTY-SLOT OBJC-PROP:TO-ONE-RELATIONSHIP-KEYS> #<OBJC::OBJC-PROPERTY-SLOT OBJC-PROP:TO-MANY-RELATIONSHIP-KEYS> #<OBJC::OBJC-PROPERTY-SLOT OBJC-PROP:OBSERVATION-INFO> #<OBJC::OBJC-PROPERTY-SLOT OBJC-PROP:CLASS-FOR-KEYED-ARCHIVER> #<OBJC::OBJC-PROPERTY-SLOT OBJC-PROP:AUTO-CONTENT-ACCESSING-PROXY> #<OBJC::OBJC-PROPERTY-SLOT OBJC-PROP:SCRIPTING-PROPERTIES> ..)
+[ ]  SLOTS                              = NIL
+
+SPECIALIZER:
+[ ]  %TYPE                              = (CLASS #<OBJC-META:NS-OBJECT OBJC-CLASS:NS-OBJECT>)
+
+[set value]  [make unbound]
+
+#+end_src
+
+To control the behaviour, you can use the MOP function ~ensure-class~, or even ~defclass~ directly.
+
+#+begin_src common-lisp
+  (c2mop:ensure-class 'objc-class:ns-object
+                      :metaclass 'objc:objc-class
+                      :auto-bind-properties nil
+                      :auto-register-methods nil)
+  or
+  (defclass objc-class:ns-object () ()
+    (:metaclass objc-class))
+#+end_src
+
+#+begin_quote
+FIXME: Currently we didn't implemented ~change-class~ relative methods on objc-class, so all class can only be defined once. Execution of the form above will signal error because ~NSObject~ has been defined. It's just demonstrating purpose.
+#+end_quote
+
+To make an instance:
+
+#+begin_src lisp
+  (make-instance (cls ns-object))
+#+end_src
+
+Note that this is using ~class_createInstance~ runtime function, you may need to do additional initialization for the object.
+
+or if you has the object's Obj-C pointer:
+
+#+begin_src lisp
+  (make-instance (cls ns-object) :objc-object <pointer>)
+#+end_src
+
+To call a method:
+
+#+begin_src lisp
+  (objc-method:new (objc:cls ns-object))
+  or
+  (funcall (objc:sel new) (objc:cls ns-object))
+
+  ;; => #<OBJC-CLASS:NS-OBJECT {700964F153}>
+#+end_src
+
+Use ~slot-value~ to get the Obj-C property:
+
+#+begin_src lisp
+  (slot-value (objc-method:new (objc::cls ns-object)) 'objc-prop:hash)
+  ;; => 105553174675536 (47 bits, #x6000037B4050)
+#+end_src
+
+** Source Explaination
+
+The ~objc-raw.lisp~ are raw CFFI bindings for [[https://developer.apple.com/documentation/objectivec/objective-c-runtime?language=objc][Obj-C runtime functions]]. All symbols are internal, and function argument are referenced by pointer. It's for utility purpose.
+
+--------------------------------------------------------
+
+The first page of ~objc.lisp~ is the /Name Translator/. It defines methods on ~cffi:translate-name-from-foreign~ and ~cffi:translate-name-to-foreign~ to makes it suitable for converting Obj-C names:
+
+- Special words ("NS", "UTF", "URL", etc.) are specially marked out;
+- For Class and Metaclass names the translation should be initial-uppered;
+- For selector, ~:~ will be converted to ~.~, for Lisp compatibility.
+
+These functions are specialized to ~OBJC*~ packages.
+
+Example:
+#+BEGIN_SRC common-lisp
+(cffi:translate-name-to-foreign name (find-package "OBJC-PROP"))
+#+END_SRC
+
+--------------------------------------------------------
+
+The second page is about [[https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ObjCRuntimeGuide/Articles/ocrtTypeEncodings.html][Obj-C Type Encodings]]. We provide:
+
+- ~parse-objc-type-encoding-to-lisp~
+- ~parse-objc-type-encoding-to-c~
+- ~parse-c-type-to-objc-encoding~
+- ~parse-lisp-type-to-c~
+- ~parse-lisp-type-to-objc-encoding~
+
+--------------------------------------------------------
+
+The third page is about ~objc-object~ and ~selector~.
+
+All Obj-C object pointer will be wrapped into an ~objc-object~, which has a slot ~OBJC:OBJ~ for the wrapped pointer.
+
+#+BEGIN_QUOTE
+FIXME: Some Obj-C objects are not presented in pointer, like ~NSRange~. For ~NSRange~ I've written a wrapper alone, but I'm not prepared to handle this problem systematically...
+#+END_QUOTE
+
+~selector~ is an instance of ~funcallable-standard-class~ metaclass. it can be funcalled to invoke the method, just like regular Obj-C message sending.
+
+~selector~ is also a CFFI foreign type, which will automatically parse ~selector~ typed argument to the instance of ~selector~.
+
+--------------------------------------------------------
+
+The fourth page is about Obj-C property to Lisp class slot definition converter.
+
+This page only contains /slot definition/ metaobject definition, real converting method is two page after, as ~compute-effective-slot-definition~ method. That's because the method must be defined after ~objc-class~ has been defined.
+
+--------------------------------------------------------
+
+The fifth page is about Obj-C class foreign-type parser.
+
+--------------------------------------------------------
+
+The sixth page contains the definition of obj-c class in Lisp: ~objc-class~ and ~objc-metaclass~. It's also contains method of ~compute-effective-slot-definition~, ~slot-value-using-class~, ~(setf slot-value-using-class)~
+
+--------------------------------------------------------
+
+The seventh page is Obj-C class => Lisp class converter, mainly ~ensure-class-using-class~ method. It will convert any class definition to Obj-C class (either regestering or defining), if it has ~objc-class~ as ~:metaobject~
