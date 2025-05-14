@@ -66,29 +66,29 @@
                `(defmethod cffi:translate-name-from-foreign
                     (name (package (eql (find-package ,pkg-name))) &optional varp)
                   (aif (car (rassoc name *special-translations* :test #'equal))
-                    (multiple-value-bind (sym status)
-                        (intern (if varp (concatenate 'simple-string "*" it "*") it)
-                                package)
-                      (unless (member status '(:inherited :external))
-                        (export sym package))
-                      sym)
-                    ;; From CFFI source code
-                    (let ((name (reduce #'(lambda (s1 s2)
-                                            (concatenate 'simple-string s1 "-" s2))
-                                        (mapcar #'string-upcase
-                                                (cffi::collapse-prefix
-                                                 (cffi::split-if #'(lambda (ch)
-                                                                     (or (upper-case-p ch)
-                                                                         (digit-char-p ch)))
-                                                                 (nsubstitute #\. #\: name))
-                                                 *special-words*)))))
-                      (when varp
-                        (setq name (concatenate 'simple-string "*" name "*")))
-                      (multiple-value-bind (sym status)
-                          (intern name package)
-                        (unless (member status '(:inherited :external))
-                          (export sym package))
-                        sym)))))
+                       (multiple-value-bind (sym status)
+                           (intern (if varp (concatenate 'simple-string "*" it "*") it)
+                                   package)
+                         (unless (member status '(:inherited :external))
+                           (export sym package))
+                         sym)
+                       ;; From CFFI source code
+                       (let ((name (reduce #'(lambda (s1 s2)
+                                               (concatenate 'simple-string s1 "-" s2))
+                                           (mapcar #'string-upcase
+                                                   (cffi::collapse-prefix
+                                                    (cffi::split-if #'(lambda (ch)
+                                                                        (or (upper-case-p ch)
+                                                                            (digit-char-p ch)))
+                                                                    (nsubstitute #\. #\: name))
+                                                    *special-words*)))))
+                         (when varp
+                           (setq name (concatenate 'simple-string "*" name "*")))
+                         (multiple-value-bind (sym status)
+                             (intern name package)
+                           (unless (member status '(:inherited :external))
+                             (export sym package))
+                           sym)))))
              (def-translate-to (pkg-name &optional upper-initial-p)
                `(defmethod cffi:translate-name-to-foreign
                     (name (package (eql (find-package ,pkg-name))) &optional varp)
@@ -149,8 +149,8 @@
     (find-class
      (aif (find-if (lambda (lst) (eql char (getf lst :objc)))
                    *objc-types-map*)
-       (getf it :lisp)
-       t))))
+          (getf it :lisp)
+          t))))
 
 (defun parse-objc-type-encoding-to-c (char-or-str)
   (let ((char (if (stringp char-or-str)
@@ -158,12 +158,12 @@
                   char-or-str)))
     (aif (find-if (lambda (lst) (eql char (getf lst :objc)))
                   *objc-types-map*)
-      (getf it :c)
-      :pointer)))
+         (getf it :c)
+         :pointer)))
 
 (defun parse-c-type-to-objc-encoding (c-type)
   (aif (find-if (lambda (lst) (eq c-type (getf lst :c)))
-                        *objc-types-map*)
+                *objc-types-map*)
        (getf it :objc)
        (if (subtypep c-type 'objc-object)
            #\@
@@ -172,17 +172,17 @@
 (defun parse-lisp-type-to-c (lisp-type)
   (aif (find-if (lambda (lst) (and (not (eq (getf lst :lisp) t))
                                    (subtypep lisp-type (find-class (getf lst :lisp)))))
-                        *objc-types-map*)
-    (getf it :c)
-    (if (subtypep lisp-type (find-class 'objc-object))
-        'objc-id
-        :pointer)))
+                *objc-types-map*)
+       (getf it :c)
+       (if (subtypep lisp-type (find-class 'objc-object))
+           'objc-id
+           :pointer)))
 
 (defun parse-lisp-type-to-objc-encoding (lisp-type)
   (aif (find-if (lambda (lst) (subtypep lisp-type (find-class (getf lst :lisp))))
-                        *objc-types-map*)
-    (getf it :objc)
-    #\?))
+                *objc-types-map*)
+       (getf it :objc)
+       #\?))
 
 (export '(parse-lisp-type-to-c
           parse-lisp-type-to-objc-encoding
@@ -505,8 +505,8 @@ attributes ::= {:return-type  ret-type} | ; T
   (declare (inline class-ptr-symbol))
   (let ((name (objc-raw::class-get-name ptr)))
     (if (objc-raw::class-is-meta-class ptr)
-      (translate-name-from-foreign name (find-package "OBJC-META"))
-      (translate-name-from-foreign name (find-package "OBJC-CLASS")))))
+        (translate-name-from-foreign name (find-package "OBJC-META"))
+        (translate-name-from-foreign name (find-package "OBJC-CLASS")))))
 ;;;; --- Helper ---
 (defun compute-slot-specs-for-properties (class-ptr)
   (with-foreign-object (out-count :uint)
@@ -559,9 +559,9 @@ attributes ::= {:return-type  ret-type} | ; T
                       (if (null-pointer-p base-super)
                           (list (find-class 'objc-class))
                           (list  (foreign-funcall
-                                 "objc_getMetaClass"
-                                 :string (objc-raw::class-get-name base-super)
-                                 objc-class))))
+                                  "objc_getMetaClass"
+                                  :string (objc-raw::class-get-name base-super)
+                                  objc-class))))
                     metaclass (find-class 'objc-metaclass))
               ;; Normal class
               (setq direct-superclasses
