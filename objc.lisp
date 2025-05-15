@@ -53,7 +53,7 @@
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defvar *special-words*
-    '("NS" "UTF8" "UI" "URL" "HTML" "PDF" "PNG" "RTFD" "RTF" "TIFF"))
+    '("NS" "CG" "UTF8" "UI" "URL" "HTML" "PDF" "PNG" "RTFD" "RTF" "TIFF"))
   (defvar *special-translations*
     '(("NS-OBJECT" . "NSObject")))
   
@@ -96,7 +96,13 @@
                       (let ((name (translate-camelcase-name name
                                                             :special-words *special-words*
                                                             :upper-initial-p ,upper-initial-p)))
-                        (setq name (nsubstitute #\: #\. name))
+                        (do ((i 0 (1+ i)))
+                            ((= i (length name)))
+                          (when (eql (char name i) #\.)
+                            (setf (char name i) #\:)
+                            (when (> (length name) (1+ i))
+                              (setf (char name (1+ i))
+                                    (char-downcase (char name (1+ i)))))))
                         (when varp
                           (setq name (subseq name 1 (1- (length name)))))
                         (if (uiop:string-prefix-p "ns" name)
@@ -140,6 +146,7 @@
     (:objc #\@ :c objc-id             :lisp t)
     (:objc #\# :c objc-class          :lisp objc-class)
     (:objc #\: :c selector            :lisp selector)
+    (:objc #\{ :c :struct             :lisp struct)
     ))
 
 (defun parse-objc-type-encoding-to-lisp (char-or-str)
@@ -149,7 +156,13 @@
     (find-class
      (aif (find-if (lambda (lst) (eql char (getf lst :objc)))
                    *objc-types-map*)
-          (getf it :lisp)
+          (let ((lisp-type (getf it :lisp)))
+            (if (eq lisp-type 'struct)
+                ;; (translate-name-from-foreign
+                ;;  (subseq char-or-str 1 (position #\= char-or-str))
+                ;;  (find-package "OBJC"))
+                t
+                lisp-type))
           t))))
 
 (defun parse-objc-type-encoding-to-c (char-or-str)
@@ -158,7 +171,15 @@
                   char-or-str)))
     (aif (find-if (lambda (lst) (eql char (getf lst :objc)))
                   *objc-types-map*)
-         (getf it :c)
+         (let ((c-type (getf it :c)))
+           (if (eq c-type :struct)
+               (let ((struct-type (translate-name-from-foreign
+                                   (subseq char-or-str 1 (position #\= char-or-str))
+                                   (find-package "OBJC"))))
+                 (if (member struct-type '(_-ns-range cg-size cg-rect cg-point))
+                     (list :struct struct-type)
+                     :pointer))
+               c-type))
          :pointer)))
 
 (defun parse-c-type-to-objc-encoding (c-type)
@@ -1194,6 +1215,104 @@ attributes ::= {:return-type  ret-type} | ; T
                   name)))
     `(selector ,name)))
 
+
+;; Structures
+;; NSRange
+
+(defcstruct (_-ns-range :class ns-range-tclass)
+  (location :ulong)
+  (length :ulong))
+
+(defmethod translate-from-foreign :around (ptr (type ns-range-tclass))
+  (let ((plist (call-next-method)))
+    (cons (getf plist 'location) (getf plist 'length))))
+(defmethod translate-into-foreign-memory :around (value (type ns-range-tclass) ptr)
+  (call-next-method (list 'location (car value) 'length (cdr value)) type ptr))
+
+(defctype ns-range _-ns-range)
+
+;; Point, Size, Rect
+
+(defcstruct (cg-point :class cg-point-tclass)
+  (x :double)
+  (y :double))
+
+(defcstruct (cg-size :class cg-size-tclass)
+  (width :double)
+  (height :double))
+
+(defcstruct (cg-rect :class cg-rect-tclass)
+  (origin (:struct cg-point))
+  (size (:struct cg-size)))
+
+;; Fucking by-value hack
+(defcstruct (_cg-rect :class _cg-rect-tclass)
+  (x :double)
+  (y :double)
+  (w :double)
+  (h :double))
+
+(defmethod translate-from-foreign :around (ptr (type cg-point-tclass))
+  (let ((plist (call-next-method)))
+    (vector (getf plist 'x) (getf plist 'y))))
+(defmethod translate-into-foreign-memory ((value vector) (type cg-point-tclass) ptr)
+  (translate-into-foreign-memory
+   (list 'x (aref value 0) 'y (aref value 1))
+   type ptr))
+
+(defmethod translate-from-foreign :around (ptr (type cg-size-tclass))
+  (let ((plist (call-next-method)))
+    (vector (getf plist 'width) (getf plist 'height))))
+(defmethod translate-into-foreign-memory ((value vector) (type cg-size-tclass) ptr)
+  (translate-into-foreign-memory
+   (list 'width (aref value 0) 'height (aref value 1))
+   type ptr))
+
+(defmethod translate-from-foreign (ptr (type cg-rect-tclass))
+  (let ((plist (call-next-method)))
+    (with-foreign-slots ((x y) (getf plist 'origin) (:struct cg-point))
+      (with-foreign-slots ((width height) (getf plist 'size) (:struct cg-size))
+        (vector x y width height)))))
+
+(defmethod translate-into-foreign-memory ((value vector) (type cg-rect-tclass) ptr)
+  (translate-into-foreign-memory
+   (list 'origin (list 'x (aref value 0) 'y (aref value 1))
+         'size (list 'width (aref value 2) 'height (aref value 3)))
+   type ptr)
+  ;; (with-foreign-slots ((x y w h) ptr (:struct _cg-rect))
+  ;;   (setf x (float (aref value 0) 0d0)
+  ;;         y (float (aref value 1) 0d0)
+  ;;         w (float (aref value 2) 0d0)
+  ;;         h (float (aref value 3) 0d0)))
+  )
+
+;; (defmethod translate-into-foreign-memory :around (value (type _cg-rect-tclass) ptr)
+;;   (call-next-method
+;;    (list 'x (float (aref value 0) 0d0)
+;;          'y (float (aref value 1) 0d0)
+;;          'w (float (aref value 2) 0d0)
+;;          'h (float (aref value 3) 0d0))
+;;    type
+;;    ptr))
+
+;; Test availability
+
+;; (let ((ptr (foreign-alloc 'cg-rect)))
+;;   (with-foreign-slots ((x y w h) ptr (:struct _cg-rect))
+;;     (setf x 1d0
+;;           y 2d0
+;;           w 3d0
+;;           h 4d0))
+;;   (with-foreign-slots ((origin size) ptr (:struct cg-rect))
+;;     (list origin size))) ; => (#(1.0d0 2.0d0) #(3.0d0 4.0d0))
+
+(defctype ns-point (:struct cg-point))
+(defctype ns-point-pointer (:pointer ns-point))
+(defctype ns-size (:struct cg-size))
+(defctype ns-size-pointer (:pointer ns-size))
+(defctype ns-rect (:struct cg-rect))
+(defctype ns-rect-pointer (:pointer (:struct cg-rect)))
+
 ;; Final setting for compile-time availability
 
 (c2mop:finalize-inheritance (find-class 'objc-method))
@@ -1337,6 +1456,8 @@ attributes ::= {:return-type  ret-type} | ; T
 
 ;; Basic Obj-C objects
 
+;; Note that the `ensure-object-class' is not ready at compile time,
+;; at least in SBCL.
 (eval-when (:load-toplevel :execute)
   (dolist (name '("NSNumber" "NSValue"
                   "NSString" "NSMutableString" "NSArray" "NSMutableArray"
@@ -1378,16 +1499,6 @@ attributes ::= {:return-type  ret-type} | ; T
                    selector (sel "stringWithUTF8String:")
                    :string obj
                    :pointer))
-
-(defcstruct (ns-range :class ns-range-tclass)
-  (location :ulong)
-  (length :ulong))
-
-(defmethod translate-from-foreign :around (ptr (type ns-range-tclass))
-  (let ((plist (call-next-method)))
-    (cons (getf plist 'location) (getf plist 'length))))
-(defmethod translate-into-foreign-memory :around (value (type ns-range-tclass) ptr)
-  (call-next-method (list 'location (car value) 'length (cdr value)) type ptr))
 
 
 
@@ -1435,7 +1546,9 @@ attributes ::= {:return-type  ret-type} | ; T
                   "NSView" "NSControl" "NSCell" "NSActionCell"
                   "NSGridView" "NSGridCell" "NSGridColumn" "NSGridRow"
                   "NSSplitView" "NSStackView" "NSTabView"
-                  "NSScrollView" "NSScroller" "NSClipView" "NSRulerView" "NSRulerMarker"))
+                  "NSScrollView" "NSScroller" "NSClipView" "NSRulerView" "NSRulerMarker"
+
+                  "NSWindow"))
     (ensure-objc-class name)))
 
 ;; Example: to get the system pasteboard
@@ -1477,9 +1590,43 @@ attributes ::= {:return-type  ret-type} | ; T
 (defcvar ("NSPasteboardTypeTIFF" :read-only t :library appkit)
   objc-id)
 
+(defcenum ns-window-style-mask
+  :borderless
+  :titled
+  :closable
+  :miniaturizable
+  :resizable
+  :textured-background
+  :unified-title-and-toolbar
+  :full-screen
+  :full-size-content-view
+  :utility-window
+  :doc-modal-window
+  :nonactivating-panel
+  :hud-window)
+
+(defcenum ns-backing-store
+  :retained
+  :non-retained
+  :store-buffered)
+
 (defcenum ns-pasteboard-reading-options :data :string :property-list :keyed-archive)
 
+;; This cannot be done because there's problem in by-value passing NSRect structure
+
+;; (let ((app (objc-method:shared-application (cls objc-class:ns-application)))
+;;       (window (objc-method:alloc (cls ns-window)))
+;;       (rect #(100d0 100d0 300d0 300d0)))
+;;   (foreign-funcall
+;;    "objc_msgSend"
+;;    :pointer (objc-obj window)
+;;    (:struct cg-rect) rect
+;;    :int (foreign-enum-value 'ns-window-style-mask :titled)
+;;    :int (foreign-enum-value 'ns-backing-store :store-buffered)
+;;    :bool nil
+;;    :pointer))
 
 ;; TODO:
 ;; - Parse type encoding for array, structure, union, bits
 ;; - Helper function & reader for Class, SEL, NSString, NSNumber...
+;; - Wrapper for NSPoint, NSSize, NSRect...
